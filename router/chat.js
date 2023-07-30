@@ -18,13 +18,13 @@ router.get('/message/friend', async (req, res) => {
             .find({ $or: [{ userId, friendId }, { userId: friendId, friendId: userId }] })
             .populate('userId', ['nick', 'imgUrl'])
             .populate('friendId', ['nick', 'imgUrl'])
-            .sort({_id:-1})
+            .sort({ _id: -1 })
             .limit(pageSize).skip((pageNum - 1) * pageSize)
         const friendNick = await UserModel.findOne({ _id: friendId }, { nick: 1 })
         const isFriend = await FriendModel.findOne({ userId, friendId, state: 1 })
         if (isFriend !== null) {
             //是好友
-            if (messageList.length==0) {
+            if (messageList.length == 0) {
                 return res.json({
                     status: 201,
                     data: {
@@ -35,7 +35,7 @@ router.get('/message/friend', async (req, res) => {
                 return res.json({
                     status: 200,
                     data: {
-                        messageList:messageList.reverse(),
+                        messageList: messageList.reverse(),
                         friendNick
                     }
                 })
@@ -49,7 +49,7 @@ router.get('/message/friend', async (req, res) => {
         }
     } catch (error) {
         console.log(error);
-        
+
         res.json({
             status: 404,
             msg: '服务器错误'
@@ -74,7 +74,7 @@ router.get('/message/group', async (req, res) => {
             res.json({
                 status: 200,
                 data: {
-                    messageList:messageList.reverse(),
+                    messageList: messageList.reverse(),
                     groupNick
                 }
             })
@@ -161,7 +161,7 @@ router.get('/message/list', async (req, res) => {
     const { userId } = req.query
     const user_Id = new mongoose.Types.ObjectId(userId.toString())
     try {
-        //查询每一个互发过消息的好友信息和最后一条数据和未读消息数
+        //查询每一个互发过消息的好友信息和最后一条数据和未读消息数(删除后还是查得到)
         const friendIds = await PrivateChatModel.aggregate([
             { $match: { $or: [{ userId: user_Id }, { friendId: user_Id }] } },
             // { $match: { userId: user_Id } },
@@ -169,68 +169,77 @@ router.get('/message/list', async (req, res) => {
             { $group: { _id: { $cond: [{ $eq: ['$userId', user_Id] }, '$friendId', '$userId'] } } }
         ])
         const friendIdList = friendIds.map(i => i._id)
-        const friendAndLastMsg = await UserModel.aggregate([
-            { $match: { _id: { $in: friendIdList } } },
-            // 查询最后一条消息
-            {
-                $lookup: {
-                    from: 'private_chats',
-
-                    let: { friendId: '$_id' },
-                    pipeline: [
-                        //找出他发给我或者我发给他的全部记录
-                        { $match: { $expr: { $or: [{ $and: [{ $eq: ['$friendId', '$$friendId'] }, { $eq: ['$userId', user_Id] }] }, { $and: [{ $eq: ['$friendId', user_Id] }, { $eq: ['$userId', '$$friendId'] }] }] } } },
-                        { $sort: { _id: -1 } },//按倒序排
-                        { $limit: 1 }//倒序拍的第一条就是最后一条消息记录
-                    ],
-                    as: 'lastMessage'
-                }
-            },
-            // 查询未读消息
-            {
-                $lookup: {
-                    from: 'private_chats',
-                    let: { friendId: '$_id' },
-                    pipeline: [
-                        {
-                            $match: {
-                                $expr: {
-                                    $and: [{ $eq: ['$friendId', user_Id] }, { $eq: ['$userId', '$$friendId'] }, { $eq: ['$state', 0] }]
-                                }
-                            }
-                        },
-                        {
-                            $group: { _id: { state: '$state' }, count: { $sum: 1 } }
-                        },
-                        {
-                            $project: { count: 1 }
-                        }
-                    ],
-                    as: 'unreadMsgCount'
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    nick: 1,
-                    imgUrl: 1,
-                    lastMessage: { $arrayElemAt: ['$lastMessage', 0] },
-                    type: 'friendChat',
-                    unreadMsgCount: { $arrayElemAt: ['$unreadMsgCount', 0] }
-                    // unreadMsgCount: 1
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    nick: 1,
-                    imgUrl: 1,
-                    lastMessage: 1,
-                    type: 'friendChat',
-                    unreadMsgCounts: '$unreadMsgCount.count'
-                }
-            }
+        //这些发过消息的还是好友吗？(只有是好友才查得到数据)
+        const IsfriendIds = await FriendModel.aggregate([
+            { $match: { $and: [{ userId: user_Id }, { friendId: { $in: friendIdList } }, { state: 1 }] } },
+            { $project: { friendId: 1 } }
         ])
+        const IsfriendIdsList = IsfriendIds.map(i => i.friendId)
+        const friendAndLastMsg = await UserModel.aggregate
+            (
+                [
+                    { $match: { _id: { $in: IsfriendIdsList } } },
+                    // 查询最后一条消息
+                    {
+                        $lookup: {
+                            from: 'private_chats',
+
+                            let: { friendId: '$_id' },
+                            pipeline: [
+                                //找出他发给我或者我发给他的全部记录
+                                { $match: { $expr: { $or: [{ $and: [{ $eq: ['$friendId', '$$friendId'] }, { $eq: ['$userId', user_Id] }] }, { $and: [{ $eq: ['$friendId', user_Id] }, { $eq: ['$userId', '$$friendId'] }] }] } } },
+                                { $sort: { _id: -1 } },//按倒序排
+                                { $limit: 1 }//倒序拍的第一条就是最后一条消息记录
+                            ],
+                            as: 'lastMessage'
+                        }
+                    },
+                    // 查询未读消息
+                    {
+                        $lookup: {
+                            from: 'private_chats',
+                            let: { friendId: '$_id' },
+                            pipeline: [
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $and: [{ $eq: ['$friendId', user_Id] }, { $eq: ['$userId', '$$friendId'] }, { $eq: ['$state', 0] }]
+                                        }
+                                    }
+                                },
+                                {
+                                    $group: { _id: { state: '$state' }, count: { $sum: 1 } }
+                                },
+                                {
+                                    $project: { count: 1 }
+                                }
+                            ],
+                            as: 'unreadMsgCount'
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            nick: 1,
+                            imgUrl: 1,
+                            lastMessage: { $arrayElemAt: ['$lastMessage', 0] },
+                            type: 'friendChat',
+                            unreadMsgCount: { $arrayElemAt: ['$unreadMsgCount', 0] }
+                            // unreadMsgCount: 1
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            nick: 1,
+                            imgUrl: 1,
+                            lastMessage: 1,
+                            type: 'friendChat',
+                            unreadMsgCounts: '$unreadMsgCount.count'
+                        }
+                    }
+                ]
+            )
 
         // 查询群聊的信息和最后一条消息和未读消息数
         let groupIds = await GroupUserModel.distinct('groupId', { userId: userId, state: 1 }).populate('groupId')
