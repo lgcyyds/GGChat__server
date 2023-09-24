@@ -7,8 +7,9 @@ const GroupUserModel = require('../model/GroupUserModel')
 const utils = require('../utils')
 const { UpdateGroupInfo } = require('../middleware/Validate')
 const uploadGroup = require('../middleware/multerUpload')
-const { json } = require('stream/consumers')
 const router = express.Router()
+const { resolve } = require('path')
+const fs = require('fs')
 
 //新建群聊接口
 //imgUrl: 前端已经把地址写好，只用存数据库就行，群头像图片上传接口只用把头像存入 /upload/group 中就行
@@ -170,13 +171,22 @@ router.get('/get/update/group', async (req, res) => {
 router.post('/update/groupInfo', UpdateGroupInfo, async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
-        res, json({
+        res.json({
             status: 405,
             mgs: '参数错误'
         })
     }
     const { _id, groupName, sign, imgUrl } = req.query
     try {
+        let doc = await GroupModel.find({ _id })
+        const oldImgUrl = doc[0].imgUrl
+        let imgPath = resolve(__dirname, "../upload/group_photo") + oldImgUrl
+        if (oldImgUrl !== 'group_pic.png' && oldImgUrl !== imgUrl) {
+            fs.unlink(imgPath, err => {
+                if (err) console.log("删除失败");
+                else console.log("删除成功");
+            })
+        }
         await GroupModel.updateOne({ _id }, { groupName, sign, imgUrl })
         res.json({
             status: 200,
@@ -263,9 +273,9 @@ router.get('/get/group/noagree', async (req, res) => {
             },
             {
                 $project: {
-                    groupId:1,
-                    userId:1,
-                    group:1,
+                    groupId: 1,
+                    userId: 1,
+                    group: 1,
                     'friendId.nick': 1,
                     'friendId.imgUrl': 1,
                     'friendId._id': 1,

@@ -2,6 +2,8 @@ const express = require('express')
 const uploadSpace = require('../middleware/multerUpload')
 const { addSpace } = require('../middleware/Validate')
 const { validationResult } = require('express-validator')
+const { resolve } = require('path')
+const fs = require('fs')
 const utils = require('../utils')
 const SpaceModel = require('../model/SpaceModel')
 const FriendModel = require('../model/FriendModel')
@@ -34,7 +36,7 @@ router.post('/space/upload/space_photo/photo', uploadSpace.single('photo'), asyn
     const file = req.file
     res.json({
         status: 200,
-        name: file.originalname,
+        name: file.filename,
         url: `/${file.filename}`
     })
 })
@@ -89,6 +91,14 @@ router.get('/space/get', async (req, res) => {
 router.get('/space/del', async (req, res) => {
     const { _id } = req.query
     try {
+        let doc = await SpaceModel.findOne({ _id })
+        doc.photos.forEach(item => {
+            let imgPath = resolve(__dirname, '../upload/space_photo') + item
+            fs.unlink(imgPath,err=>{
+                if(err) console.log("删除动态图片失败");
+                else console.log("删除成功");
+            })
+        })
         await SpaceModel.deleteOne({ _id })
         res.json({
             status: 200,
@@ -104,9 +114,9 @@ router.get('/space/del', async (req, res) => {
 
 //用户空间详细接口
 router.get('/space/details', async (req, res) => {
-    const { userId } = req.query    
+    const { userId } = req.query
     try {
-        const spaceList = await SpaceModel.find({ userId }).sort({ _id: -1 }).populate('userId', ['nick', 'imgUrl', 'GGCode','phone'])
+        const spaceList = await SpaceModel.find({ userId }).sort({ _id: -1 }).populate('userId', ['nick', 'imgUrl', 'GGCode', 'phone'])
         res.json({
             status: 200,
             data: spaceList

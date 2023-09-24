@@ -159,7 +159,7 @@ router.post('/chat/group_photo/photo', photoUpload.single('img'), async (req, re
 //获取tabbar消息页的消息列表（发送过消息的好友/群）
 router.get('/message/list', async (req, res) => {
     const { userId } = req.query
-    const user_Id = new mongoose.Types.ObjectId(userId.toString())
+    const user_Id = new mongoose.Types.ObjectId(userId?.toString())
     try {
         //查询每一个互发过消息的好友信息和最后一条数据和未读消息数(删除后还是查得到)
         const friendIds = await PrivateChatModel.aggregate([

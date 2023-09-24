@@ -3,6 +3,8 @@ const router = express.Router()
 const { UpdateInfo } = require('../middleware/Validate')
 const multerUpload = require('../middleware/multerUpload')
 const { validationResult } = require('express-validator')
+const { resolve } = require('path')
+const fs = require('fs')
 const utils = require('../utils/index')
 const UserModel = require('../model/UserModel')
 const FriendModel = require('../model/FriendModel')
@@ -31,7 +33,7 @@ router.get('/user/getUserInfo', async (req, res) => {
  */
 router.get('/home/user', async (req, res) => {
     // _id:自己的id，_urlId:前端页面点击用户的id
-    let { _id, urlId } = req.query    
+    let { _id, urlId } = req.query
     try {
         const user = await UserModel.findOne({ _id: urlId }, { token: 0, password: 0 })
         const friendState = await FriendModel.findOne({ userId: _id, friendId: urlId }, { state: 1 })
@@ -128,9 +130,20 @@ router.post('/update/user', UpdateInfo, async (req, res) => {
         })
     }
     const { _id, nick, sex, birthday, sign, imgUrl } = req.body
+    console.log(imgUrl);
+    
     const age = utils.calculateAge(birthday)
     const start = utils.getStart(birthday)
     try {
+        const doc = await UserModel.find({ _id })
+        const oldImgUrl = doc[0].imgUrl
+        let imgPath = resolve(__dirname, "../upload/user_photo") + oldImgUrl
+        if (oldImgUrl !== '/user_pic1.jpeg' && oldImgUrl !== '/user_pic2.jpeg' && oldImgUrl !== imgUrl) {
+            fs.unlink(imgPath,err=>{
+                if(err) console.log("删除失败");
+                else console.log("删除成功");
+            })
+        }
         await UserModel.updateOne({ _id }, { nick, sex, birthday, sign, imgUrl, age, start })
         res.json({
             status: 200,

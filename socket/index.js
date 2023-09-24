@@ -34,7 +34,7 @@ module.exports = (io) => {
                     toId: fId
                 }    
                 socket.to(users[fId]).emit('private_chat', data)                
-                //除了把信息发给接收者，还要给接收者未读信息的消息
+                //除了把信息发给接收者，还要给接收者未读信息的消息,uId用于清除缓存，谁发送给我的就清除跟谁的缓存
                 socket.to(users[fId]).emit('unread_message', uId)
             } catch (error) {
                 console.log(error);
@@ -57,7 +57,7 @@ module.exports = (io) => {
                     toId: gId
                 }
                 socket.to(gId).emit('group_chat', data)
-                socket.to(gId).emit('unread_message')
+                socket.to(gId).emit('unread_message',gId)
             } catch (error) {
                 console.log(error);
 
